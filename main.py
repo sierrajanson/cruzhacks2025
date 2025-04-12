@@ -6,20 +6,19 @@ from ultralytics import YOLO
 from transformers import SegformerFeatureExtractor, SegformerForSemanticSegmentation
 import torch
 
-
 model = YOLO("yolov8n-seg.pt") 
 
 feature_extractor = SegformerFeatureExtractor.from_pretrained("nvidia/segformer-b0-finetuned-ade-512-512")
 segformer = SegformerForSemanticSegmentation.from_pretrained("nvidia/segformer-b0-finetuned-ade-512-512").eval()
 
-FLOOR_ID = 12   # floor
 WALL_ID = 0     # wall
 
 cap = cv2.VideoCapture(0)
 frame_placeholder = st.empty()
 count = 0
-# save = None
 save_wall_mask = None
+
+# camera run loop
 while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
@@ -27,7 +26,6 @@ while cap.isOpened():
         break
 
     # wall/floor identification
-
     annotated_frame = frame.copy()
 
     if count % 10 == 0:
@@ -47,8 +45,6 @@ while cap.isOpened():
         wall_overlay = np.zeros_like(frame)
         wall_overlay[:, :, 2] = wall_mask * 200    # red for wall
         save_wall_mask = wall_mask
-        # save = wall_overlay
-    # annotated_frame = cv2.addWeighted(annotated_frame, 1.0, save, 0.3, 0)
     results = model(frame)[0]
 
     if results.masks is not None:
@@ -64,16 +60,11 @@ while cap.isOpened():
         ground_color = np.array([50, 200, 50], dtype=np.uint8)  # light green
         ground_overlay = np.stack([ground_mask * c for c in ground_color], axis=-1)
         annotated_frame = cv2.addWeighted(annotated_frame, 1.0, ground_overlay, 0.3, 0)
-        # print(results.masks)
         for result in results:
             xy = result.masks.xy  # mask in polygon format
-
             masks = result.masks.data  # mask in matrix format (num_objects x H x W)
             # print("MASKS", masks)
 
-    # annotated_frame = results.plot(labels=False, boxes=False)
-    # if cv2.waitKey(1) & 0xFF == ord("q"):
-    #     break
     frame_placeholder.image(annotated_frame, channels="BGR")
     count += 1
 cap.release()
